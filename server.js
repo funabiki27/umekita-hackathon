@@ -23,9 +23,24 @@ let handbookContent = "";
 async function loadHandbook() {
   try {
     const dataBuffer = fs.readFileSync("./book.pdf");
-    const data = await pdf(dataBuffer);
+
+    // ページごとにテキストを抽出するためのオプション
+    const options = {
+      pagerender: (pageData) => {
+        return pageData.getTextContent().then((textContent) => {
+          let text = "";
+          textContent.items.forEach((item) => {
+            text += item.str + " ";
+          });
+          return `[ページ ${pageData.pageNumber}]\n${text}\n\n`;
+        });
+      },
+    };
+
+    const data = await pdf(dataBuffer, options);
     handbookContent = data.text;
-    console.log("学生便覧を読み込みました");
+
+    console.log(`学生便覧を読み込みました (総ページ数: ${data.numpages})`);
   } catch (error) {
     console.error("学生便覧の読み込みエラー:", error);
   }
@@ -42,14 +57,14 @@ app.post("/api/chat", async (req, res) => {
 
     // プロンプトを作成
     const prompt = `
-以下は学生便覧の内容です：
+以下は学生便覧の内容です（ページ番号付き）：
 ${handbookContent}
 
 ユーザーの質問: ${message}
 
 上記の学生便覧の内容に基づいて、ユーザーの質問に回答してください。
+回答する際は、該当する情報が記載されているページ番号を必ず含めてください（例：「○ページに記載されています」）。
 学生便覧に記載されていない内容については、「学生便覧に記載されていません」と回答してください。
-学生便覧の内容をもとに回答するときは、具体的なページ数を示してください。
 回答は日本語で、分かりやすく説明してください。
 `;
 
