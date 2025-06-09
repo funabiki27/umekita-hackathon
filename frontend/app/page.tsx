@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-// 学部・学科のデータを定義（バックエンドのGoコードと一致させる）
+// 学部・学科のデータを定義
 const departmentsByFaculty = {
   engineering: {
     mechanical: "機械工学科",
@@ -25,7 +25,6 @@ const departmentsByFaculty = {
     biology: "生物学科",
     planetology: "惑星学科",
   },
-  // ▼▼▼ ここからが追加した学部 ▼▼▼
   medicine: {
     nursing: "看護学専攻",
     medical_technology: "検査技術科学専攻",
@@ -62,16 +61,24 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedFaculty, setSelectedFaculty] = useState<FacultyKey>('engineering');
+  
+  // ★★★ 初期値を空('')に変更 ★★★
+  const [selectedFaculty, setSelectedFaculty] = useState<FacultyKey | ''>('');
   const [selectedDepartment, setSelectedDepartment] = useState('');
   
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // 学部が変更されたら、学科のリストを更新し、選択肢の先頭をデフォルトに設定
+  // ★★★ 学部が選択/非選択になった際の処理を修正 ★★★
   useEffect(() => {
-    const departments = departmentsByFaculty[selectedFaculty];
-    const firstDepartmentKey = Object.keys(departments)[0];
-    setSelectedDepartment(firstDepartmentKey);
+    if (selectedFaculty) {
+      // 学部が選択されたら、その学部の一番最初の学科を自動で選択する
+      const departments = departmentsByFaculty[selectedFaculty];
+      const firstDepartmentKey = Object.keys(departments)[0];
+      setSelectedDepartment(firstDepartmentKey);
+    } else {
+      // 学部が選択されていない状態になったら、学科もリセットする
+      setSelectedDepartment('');
+    }
   }, [selectedFaculty]);
 
   // メッセージが追加されたら、一番下までスクロール
@@ -86,7 +93,7 @@ export default function Home() {
     if (!trimmedInput || isLoading) return;
 
     if (!selectedFaculty || !selectedDepartment) {
-      setMessages(prev => [...prev, { content: "エラー: 学部と学科を選択してください。", isUser: false }]);
+      alert("学部と学科を選択してください。");
       return;
     }
     
@@ -118,8 +125,6 @@ export default function Home() {
     }
   };
 
-  const departmentOptions = departmentsByFaculty[selectedFaculty];
-
   return (
     <div className="container">
       <div className="header">
@@ -136,11 +141,12 @@ export default function Home() {
             onChange={(e) => setSelectedFaculty(e.target.value as FacultyKey)}
             disabled={isLoading}
           >
-            {/* ▼▼▼ この部分が動的に学部の選択肢を生成しています ▼▼▼ */}
+            {/* ★★★ プレースホルダー（未選択時の表示）を追加 ★★★ */}
+            <option value="" disabled>学部を選択</option>
+            
             {Object.keys(departmentsByFaculty).map(facultyKey => (
               <option key={facultyKey} value={facultyKey}>
                 {
-                  // キーを日本語の学部名に変換
                   {
                     engineering: "工学部",
                     letters: "文学部",
@@ -162,9 +168,13 @@ export default function Home() {
             id="departmentSelect"
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            disabled={isLoading}
+            disabled={isLoading || !selectedFaculty} // ★★★ 学部が未選択なら非活性化 ★★★
           >
-            {Object.entries(departmentOptions).map(([key, name]) => (
+            {/* ★★★ プレースホルダーを追加 ★★★ */}
+            <option value="" disabled>学科を選択</option>
+
+            {/* ★★★ 学部が選択されている場合のみ学科を表示 ★★★ */}
+            {selectedFaculty && Object.entries(departmentsByFaculty[selectedFaculty]).map(([key, name]) => (
               <option key={key} value={key}>{name}</option>
             ))}
           </select>
@@ -199,7 +209,11 @@ export default function Home() {
           onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
           disabled={isLoading}
         />
-        <button id="sendButton" onClick={handleSendMessage} disabled={isLoading}>
+        <button 
+            id="sendButton" 
+            onClick={handleSendMessage} 
+            disabled={isLoading || !selectedFaculty || !selectedDepartment} // ★★★ 学部学科が未選択なら非活性化 ★★★
+        >
           送信
         </button>
       </div>
