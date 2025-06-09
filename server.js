@@ -27,8 +27,8 @@ async function loadHandbook() {
     const dataBuffer = fs.readFileSync("./book.pdf"); // ← ファイル名はご自身のものに合わせてください
     const doc = await pdfjsLib.getDocument({
       data: new Uint8Array(dataBuffer),
-      cMapUrl: 'node_modules/pdfjs-dist/cmaps/', // CMapファイルの場所を指定
-      cMapPacked: true,                          // パックされたCMapを使用する設定
+      cMapUrl: "node_modules/pdfjs-dist/cmaps/", // CMapファイルの場所を指定
+      cMapPacked: true, // パックされたCMapを使用する設定
     }).promise;
     const numPages = doc.numPages;
     let fullText = "";
@@ -38,7 +38,7 @@ async function loadHandbook() {
     for (let i = 1; i <= numPages; i++) {
       const page = await doc.getPage(i);
       const textContent = await page.getTextContent();
-      const pageText = textContent.items.map(item => item.str).join(" ");
+      const pageText = textContent.items.map((item) => item.str).join(" ");
       fullText += `--- PAGE ${i} ---\n${pageText}\n\n`;
     }
 
@@ -71,6 +71,7 @@ ${message}
 
 # 回答のルール
 - 上記の学生便覧の内容に基づいて、ユーザーの質問に回答してください。
+- 回答する際は、該当する情報が記載されているページ番号を必ず含めてください（例：「○ページに記載されています」）。
 - 学生便覧に記載されていない内容については、「学生便覧に記載されていません」と回答してください。
 - 学生便覧の内容をもとに回答するときは、具体的なページ数を示してください。
 - 回答は日本語で、分かりやすく説明してください。
