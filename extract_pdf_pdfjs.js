@@ -1,9 +1,12 @@
 const fs = require("fs");
+const path = require("path");
 const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
 
 // PDF.jsのワーカーを設定
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "node_modules/pdfjs-dist/legacy/build/pdf.worker.js";
+pdfjsLib.GlobalWorkerOptions.workerSrc = path.join(
+  __dirname,
+  "node_modules/pdfjs-dist/legacy/build/pdf.worker.js"
+);
 
 async function extractPDFText() {
   try {
