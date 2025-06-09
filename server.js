@@ -6,7 +6,7 @@ const cors = require("cors");
 require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Middleware
 app.use(cors());
@@ -17,7 +17,7 @@ app.use(express.static("public"));
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-// === ▼▼▼ 変更箇所 ▼▼▼ ===
+// === ▼▼▼ 修正箇所 ▼▼▼ ===
 
 // 学部・学科名とPDFファイルのパスをマッピング
 const facultyData = {
@@ -61,7 +61,13 @@ const handbookCache = {};
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `pdfjs-dist/legacy/build/pdf.worker.js`;
 
+/**
+ * 学生便覧を読み込む関数。
+ * まず学部に対応するテキストファイル（例: engineering.txt）を探し、
+ * 存在すればそれを読み込む。なければPDFを解析し、結果をテキストファイルとして保存する。
+ */
 async function loadHandbook(faculty) {
+  // 1. メモリキャッシュをチェック
   if (handbookCache[faculty]) {
     console.log(
       `${facultyData[faculty].name}の学生便覧をキャッシュから読み込みました`
@@ -70,15 +76,37 @@ async function loadHandbook(faculty) {
   }
 
   const handbookInfo = facultyData[faculty];
-  if (!handbookInfo || !fs.existsSync(handbookInfo.path)) {
-    console.error(
-      `${faculty}に対応する学生便覧ファイルが見つかりません: ${handbookInfo?.path}`
-    );
+  if (!handbookInfo) {
+    console.error(`${faculty}に対応する設定が見つかりません。`);
     return null;
   }
 
+  // 2. テキストファイルのパスを定義
+  const textFilePath = `./handbook_${faculty}.txt`; // 例: ./handbook_engineering.txt
+
   try {
-    const dataBuffer = fs.readFileSync(handbookInfo.path);
+    // 3. テキストファイルが存在すれば、それを読み込んで返す
+    if (fs.existsSync(textFilePath)) {
+      console.log(`保存済みのテキストファイル (${textFilePath}) を読み込んでいます...`);
+      const handbookContent = fs.readFileSync(textFilePath, "utf8");
+      handbookCache[faculty] = handbookContent; // メモリにキャッシュ
+      console.log(
+        `${handbookInfo.name}学生便覧テキストを読み込みました (${handbookContent.length} 文字)`
+      );
+      return handbookContent;
+    }
+
+    // 4. テキストファイルがなければ、PDFを読み込む
+    const pdfPath = handbookInfo.path;
+    if (!fs.existsSync(pdfPath)) {
+      console.error(
+        `${faculty}に対応するPDFファイルが見つかりません: ${pdfPath}`
+      );
+      return null;
+    }
+
+    console.log(`${handbookInfo.name}のPDF (${pdfPath}) を解析しています...`);
+    const dataBuffer = fs.readFileSync(pdfPath);
     const doc = await pdfjsLib.getDocument({
       data: new Uint8Array(dataBuffer),
       cMapUrl: "node_modules/pdfjs-dist/cmaps/",
@@ -96,10 +124,16 @@ async function loadHandbook(faculty) {
       fullText += `--- PAGE ${i} ---\n${pageText}\n\n`;
     }
 
+    // 5. 解析したテキストをメモリにキャッシュし、次回以降のためにファイルにも保存
     handbookCache[faculty] = fullText;
+    fs.writeFileSync(textFilePath, fullText, "utf8");
+    console.log(
+      `${handbookInfo.name}のテキストを ${textFilePath} に保存しました。`
+    );
     console.log(
       `${handbookInfo.name}学生便覧を ${numPages} ページ読み込みました`
     );
+
     return fullText;
   } catch (error) {
     console.error(`${handbookInfo.name}学生便覧の読み込みエラー:`, error);
@@ -127,6 +161,7 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "指定された学科は存在しません" });
     }
 
+    // 対応する学部の学生便覧を読み込む（キャッシュも利用）
     const handbookContent = await loadHandbook(faculty);
 
     if (!handbookContent) {
@@ -137,6 +172,7 @@ app.post("/api/chat", async (req, res) => {
 
     const facultyName = facultyInfo.name;
 
+    // RAG検索（関連箇所抽出）は行わず、全文をコンテキストとして渡す
     const prompt = `
 あなたは神戸大学${facultyName}の学生便覧に詳しいチャットボットです。
 ユーザーは特に「${departmentName}」に関する情報を探しています。
@@ -153,6 +189,7 @@ ${message}
 - あなたの知識ではなく、上記の学生便覧の内容のみを情報源としてください。
 - 回答は「${departmentName}」の学生に関連する内容を優先してください。
 - 回答する際は、該当する情報が記載されているページ番号を必ず含めてください（例：「○ページに記載されています」）。
+- 該当する情報が複数ある場合は必ずすべてのページ番号を記載してください。
 - 学生便覧に記載されていない内容については、「学生便覧に記載されていません」と明確に回答してください。
 - 回答は日本語で、分かりやすく説明してください。
 `;
@@ -164,6 +201,16 @@ ${message}
     res.json({ response: text });
   } catch (error) {
     console.error("チャットエラー:", error);
+
+    // レート制限エラーの場合
+    if (error.message.includes("429") || error.message.includes("quota")) {
+      return res.status(429).json({
+        error:
+          "現在、AIサービスの利用制限に達しています。しばらく時間をおいてから再度お試しください。",
+        retryAfter: 60, // 60秒後に再試行
+      });
+    }
+
     res.status(500).json({ error: "サーバーエラーが発生しました" });
   }
 });
@@ -173,4 +220,4 @@ app.listen(PORT, () => {
   console.log(`サーバーがポート${PORT}で起動しました`);
 });
 
-// === ▲▲▲ 変更箇所 ▲▲▲ ===
+// === ▲▲▲ 修正箇所 ▲▲▲ ===
