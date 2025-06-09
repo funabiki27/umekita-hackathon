@@ -24,6 +24,32 @@
         padding: 20px;
         text-align: center;
       }
+      /* === ▼▼▼ 変更箇所のスタイル ▼▼▼ === */
+      .selector-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        padding: 15px;
+        background-color: #f9f9f9;
+        border-bottom: 1px solid #eee;
+      }
+      .selector-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .selector-group label {
+        font-size: 16px;
+        color: #333;
+      }
+      .selector-group select {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-size: 16px;
+      }
+      /* === ▲▲▲ 変更箇所のスタイル ▲▲▲ === */
       .chat-container {
         height: 400px;
         overflow-y: auto;
@@ -90,11 +116,26 @@
     <div class="container">
       <div class="header">
         <h1>📚 学生便覧チャットボット</h1>
-        <p>学生便覧について何でも質問してください！</p>
+        <p>学部・学科を選択して、何でも質問してください！</p>
+      </div>
+
+      <div class="selector-container">
+        <div class="selector-group">
+          <label for="facultySelect">学部:</label>
+          <select id="facultySelect">
+            <option value="engineering">工学部</option>
+            <option value="letters">文学部</option>
+            <option value="science">理学部</option>
+          </select>
+        </div>
+        <div class="selector-group">
+          <label for="departmentSelect">学科:</label>
+          <select id="departmentSelect"></select>
+        </div>
       </div>
       <div class="chat-container" id="chatContainer">
         <div class="message bot-message">
-          こんにちは！学生便覧について質問があれば、お気軽にお聞かせください。
+          こんにちは！学部と学科を選択してから、質問をお聞かせください。
         </div>
       </div>
       <div class="input-container">
@@ -108,6 +149,64 @@
     </div>
 
     <script>
+      // === ▼▼▼ ここから変更 ▼▼▼ ===
+      const departmentsByFaculty = {
+        engineering: {
+          mechanical: "機械工学科",
+          electrical: "電気電子工学科",
+          computer_science: "情報知能工学科",
+          applied_chemistry: "応用化学科",
+          civil_engineering: "市民工学科",
+          architecture: "建築学科",
+        },
+        letters: {
+          philosophy: "哲学・倫理学専修",
+          history: "歴史学専修",
+          literature: "文学専修",
+          cultural_studies: "文化学専修",
+        },
+        science: {
+          mathematics: "数学科",
+          physics: "物理学科",
+          chemistry: "化学科",
+          biology: "生物学科",
+          planetology: "惑星学科",
+        },
+      };
+
+      const facultySelect = document.getElementById("facultySelect");
+      const departmentSelect = document.getElementById("departmentSelect");
+      let selectedFaculty = facultySelect.value;
+      let selectedDepartment = "";
+
+      function updateDepartmentOptions() {
+        selectedFaculty = facultySelect.value;
+        const departments = departmentsByFaculty[selectedFaculty];
+
+        // 学科セレクトボックスをクリア
+        departmentSelect.innerHTML = "";
+
+        // 新しい学科の選択肢を追加
+        for (const key in departments) {
+          const option = document.createElement("option");
+          option.value = key;
+          option.textContent = departments[key];
+          departmentSelect.appendChild(option);
+        }
+        // 選択されている学科を更新
+        selectedDepartment = departmentSelect.value;
+      }
+
+      facultySelect.addEventListener("change", updateDepartmentOptions);
+      departmentSelect.addEventListener("change", () => {
+        selectedDepartment = departmentSelect.value;
+      });
+
+      // 初期表示時の学科を設定
+      document.addEventListener("DOMContentLoaded", updateDepartmentOptions);
+
+      // === ▲▲▲ ここまで変更 ▲▲▲ ===
+
       const chatContainer = document.getElementById("chatContainer");
       const messageInput = document.getElementById("messageInput");
       const sendButton = document.getElementById("sendButton");
@@ -117,7 +216,7 @@
         messageDiv.className = `message ${
           isUser ? "user-message" : "bot-message"
         }`;
-        messageDiv.textContent = content;
+        messageDiv.innerHTML = content.replace(/\n/g, "<br>");
         chatContainer.appendChild(messageDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
@@ -142,6 +241,11 @@
         const message = messageInput.value.trim();
         if (!message) return;
 
+        if (!selectedFaculty || !selectedDepartment) {
+          addMessage("エラー: 学部と学科を選択してください。");
+          return;
+        }
+
         sendButton.disabled = true;
         addMessage(message, true);
         messageInput.value = "";
@@ -153,7 +257,13 @@
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ message }),
+            // === ▼▼▼ 変更箇所 ▼▼▼ ===
+            body: JSON.stringify({
+              message,
+              faculty: selectedFaculty,
+              department: selectedDepartment,
+            }),
+            // === ▲▲▲ 変更箇所 ▲▲▲ ===
           });
 
           const data = await response.json();
@@ -173,6 +283,7 @@
         }
 
         sendButton.disabled = false;
+        messageInput.focus();
       }
 
       sendButton.addEventListener("click", sendMessage);
