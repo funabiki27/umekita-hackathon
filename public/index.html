@@ -24,29 +24,32 @@
         padding: 20px;
         text-align: center;
       }
-      /* === ▼▼▼ 追加スタイル ▼▼▼ === */
-      .faculty-selector {
+      /* === ▼▼▼ 変更箇所のスタイル ▼▼▼ === */
+      .selector-container {
         display: flex;
         justify-content: center;
-        gap: 10px;
+        align-items: center;
+        gap: 20px;
         padding: 15px;
         background-color: #f9f9f9;
         border-bottom: 1px solid #eee;
       }
-      .faculty-btn {
-        padding: 8px 16px;
+      .selector-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .selector-group label {
+        font-size: 16px;
+        color: #333;
+      }
+      .selector-group select {
+        padding: 8px 12px;
         border: 1px solid #ccc;
-        border-radius: 20px;
-        background-color: white;
-        cursor: pointer;
-        transition: all 0.3s;
+        border-radius: 5px;
+        font-size: 16px;
       }
-      .faculty-btn.active {
-        background-color: #667eea;
-        color: white;
-        border-color: #667eea;
-      }
-      /* === ▲▲▲ 追加スタイル ▲▲▲ === */
+      /* === ▲▲▲ 変更箇所のスタイル ▲▲▲ === */
       .chat-container {
         height: 400px;
         overflow-y: auto;
@@ -113,19 +116,26 @@
     <div class="container">
       <div class="header">
         <h1>📚 学生便覧チャットボット</h1>
-        <p>学部を選択して、何でも質問してください！</p>
+        <p>学部・学科を選択して、何でも質問してください！</p>
       </div>
 
-      <div class="faculty-selector" id="facultySelector">
-        <button class="faculty-btn active" data-faculty="engineering">
-          工学部
-        </button>
-        <button class="faculty-btn" data-faculty="letters">文学部</button>
-        <button class="faculty-btn" data-faculty="science">理学部</button>
+      <div class="selector-container">
+        <div class="selector-group">
+          <label for="facultySelect">学部:</label>
+          <select id="facultySelect">
+            <option value="engineering">工学部</option>
+            <option value="letters">文学部</option>
+            <option value="science">理学部</option>
+          </select>
+        </div>
+        <div class="selector-group">
+          <label for="departmentSelect">学科:</label>
+          <select id="departmentSelect"></select>
+        </div>
       </div>
       <div class="chat-container" id="chatContainer">
         <div class="message bot-message">
-          こんにちは！学部を選択してから、質問をお聞かせください。
+          こんにちは！学部と学科を選択してから、質問をお聞かせください。
         </div>
       </div>
       <div class="input-container">
@@ -139,36 +149,73 @@
     </div>
 
     <script>
+      // === ▼▼▼ ここから変更 ▼▼▼ ===
+      const departmentsByFaculty = {
+        engineering: {
+          mechanical: "機械工学科",
+          electrical: "電気電子工学科",
+          computer_science: "情報知能工学科",
+          applied_chemistry: "応用化学科",
+          civil_engineering: "市民工学科",
+          architecture: "建築学科",
+        },
+        letters: {
+          philosophy: "哲学・倫理学専修",
+          history: "歴史学専修",
+          literature: "文学専修",
+          cultural_studies: "文化学専修",
+        },
+        science: {
+          mathematics: "数学科",
+          physics: "物理学科",
+          chemistry: "化学科",
+          biology: "生物学科",
+          planetology: "惑星学科",
+        },
+      };
+
+      const facultySelect = document.getElementById("facultySelect");
+      const departmentSelect = document.getElementById("departmentSelect");
+      let selectedFaculty = facultySelect.value;
+      let selectedDepartment = "";
+
+      function updateDepartmentOptions() {
+        selectedFaculty = facultySelect.value;
+        const departments = departmentsByFaculty[selectedFaculty];
+
+        // 学科セレクトボックスをクリア
+        departmentSelect.innerHTML = "";
+
+        // 新しい学科の選択肢を追加
+        for (const key in departments) {
+          const option = document.createElement("option");
+          option.value = key;
+          option.textContent = departments[key];
+          departmentSelect.appendChild(option);
+        }
+        // 選択されている学科を更新
+        selectedDepartment = departmentSelect.value;
+      }
+
+      facultySelect.addEventListener("change", updateDepartmentOptions);
+      departmentSelect.addEventListener("change", () => {
+        selectedDepartment = departmentSelect.value;
+      });
+
+      // 初期表示時の学科を設定
+      document.addEventListener("DOMContentLoaded", updateDepartmentOptions);
+
+      // === ▲▲▲ ここまで変更 ▲▲▲ ===
+
       const chatContainer = document.getElementById("chatContainer");
       const messageInput = document.getElementById("messageInput");
       const sendButton = document.getElementById("sendButton");
-      // === ▼▼▼ 追加箇所 ▼▼▼ ===
-      const facultySelector = document.getElementById("facultySelector");
-      let selectedFaculty = "engineering"; // デフォルトの学部
-      // === ▲▲▲ 追加箇所 ▲▲▲ ===
-
-      // === ▼▼▼ 追加箇所 ▼▼▼ ===
-      facultySelector.addEventListener("click", (e) => {
-        if (e.target.tagName === "BUTTON") {
-          // すべてのボタンから active クラスを削除
-          document
-            .querySelectorAll(".faculty-btn")
-            .forEach((btn) => btn.classList.remove("active"));
-          // クリックされたボタンに active クラスを追加
-          e.target.classList.add("active");
-          // 選択された学部を更新
-          selectedFaculty = e.target.dataset.faculty;
-          console.log("Selected faculty:", selectedFaculty);
-        }
-      });
-      // === ▲▲▲ 追加箇所 ▲▲▲ ===
 
       function addMessage(content, isUser = false) {
         const messageDiv = document.createElement("div");
         messageDiv.className = `message ${
           isUser ? "user-message" : "bot-message"
         }`;
-        // 改行を<br>に変換して表示
         messageDiv.innerHTML = content.replace(/\n/g, "<br>");
         chatContainer.appendChild(messageDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -194,12 +241,10 @@
         const message = messageInput.value.trim();
         if (!message) return;
 
-        // === ▼▼▼ 変更箇所 ▼▼▼ ===
-        if (!selectedFaculty) {
-          addMessage("エラー: まず学部を選択してください。");
+        if (!selectedFaculty || !selectedDepartment) {
+          addMessage("エラー: 学部と学科を選択してください。");
           return;
         }
-        // === ▲▲▲ 変更箇所 ▲▲▲ ===
 
         sendButton.disabled = true;
         addMessage(message, true);
@@ -207,16 +252,19 @@
         showLoading();
 
         try {
-          // === ▼▼▼ 変更箇所 ▼▼▼ ===
-          // リクエストボディに message と faculty を含める
           const response = await fetch("/api/chat", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ message, faculty: selectedFaculty }),
+            // === ▼▼▼ 変更箇所 ▼▼▼ ===
+            body: JSON.stringify({
+              message,
+              faculty: selectedFaculty,
+              department: selectedDepartment,
+            }),
+            // === ▲▲▲ 変更箇所 ▲▲▲ ===
           });
-          // === ▲▲▲ 変更箇所 ▲▲▲ ===
 
           const data = await response.json();
           hideLoading();
