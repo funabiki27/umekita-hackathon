@@ -161,12 +161,15 @@
 
           if (response.ok) {
             addMessage(data.response);
+          } else if (response.status === 429) {
+            // レート制限エラーの場合
+            addMessage(`⚠️ ${data.error || 'レート制限に達しました'}\n\n${data.retryAfter ? `${data.retryAfter}秒後に再度お試しください。` : '1分後に再度お試しください。'}`);
           } else {
-            addMessage("エラーが発生しました: " + data.error);
+            addMessage("エラーが発生しました: " + (data.error || '不明なエラー'));
           }
         } catch (error) {
           hideLoading();
-          addMessage("通信エラーが発生しました。再度お試しください。");
+          addMessage("通信エラーが発生しました。サーバーが起動しているか確認してください。");
         }
 
         sendButton.disabled = false;
