@@ -17,23 +17,53 @@ app.use(express.static("public"));
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-let handbookContent = "";
+// === ▼▼▼ 変更箇所 ▼▼▼ ===
 
-// 【変更箇所】workerSrcのパスを、インストールした古いバージョンに合わせる
+// 学部名とPDFファイルのパスをマッピング
+const handbookPaths = {
+  engineering: { name: "工学部", path: "./book_kougaku.pdf" }, // 元のファイル
+  letters: { name: "文学部", path: "./book_bungaku.pdf" }, // 文学部用のPDFパス（例）
+  science: { name: "理学部", path: "./book_science.pdf" }, // 理学部用のPDFパス（例）
+};
+
+// 読み込んだPDFコンテンツをキャッシュするオブジェクト
+const handbookCache = {};
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = `pdfjs-dist/legacy/build/pdf.worker.js`;
 
-async function loadHandbook() {
+/**
+ * 学部を指定して学生便覧のPDFを読み込み、テキストコンテンツを返す関数
+ * @param {string} faculty - 学部キー (例: 'engineering')
+ * @returns {Promise<string|null>} PDFのテキストコンテンツ、またはエラー時にnull
+ */
+async function loadHandbook(faculty) {
+  // キャッシュがあればそれを返す
+  if (handbookCache[faculty]) {
+    console.log(
+      `${handbookPaths[faculty].name}の学生便覧をキャッシュから読み込みました`
+    );
+    return handbookCache[faculty];
+  }
+
+  const handbookInfo = handbookPaths[faculty];
+  if (!handbookInfo || !fs.existsSync(handbookInfo.path)) {
+    console.error(
+      `${faculty}に対応する学生便覧ファイルが見つかりません: ${handbookInfo?.path}`
+    );
+    return null;
+  }
+
   try {
-    const dataBuffer = fs.readFileSync("./book.pdf"); // ← ファイル名はご自身のものに合わせてください
+    const dataBuffer = fs.readFileSync(handbookInfo.path);
     const doc = await pdfjsLib.getDocument({
       data: new Uint8Array(dataBuffer),
-      cMapUrl: "node_modules/pdfjs-dist/cmaps/", // CMapファイルの場所を指定
-      cMapPacked: true, // パックされたCMapを使用する設定
+      cMapUrl: "node_modules/pdfjs-dist/cmaps/",
+      cMapPacked: true,
     }).promise;
     const numPages = doc.numPages;
     let fullText = "";
 
-    console.log(`PDFのページ数: ${numPages}`);
+    console.log(`${handbookInfo.name}学生便覧のページ数: ${numPages}`);
 
     for (let i = 1; i <= numPages; i++) {
       const page = await doc.getPage(i);
@@ -42,29 +72,50 @@ async function loadHandbook() {
       fullText += `--- PAGE ${i} ---\n${pageText}\n\n`;
     }
 
-    handbookContent = fullText;
-    console.log(`学生便覧を ${numPages} ページ読み込みました`);
+    // 読み込んだコンテンツをキャッシュに保存
+    handbookCache[faculty] = fullText;
+    console.log(
+      `${handbookInfo.name}学生便覧を ${numPages} ページ読み込みました`
+    );
+    return fullText;
   } catch (error) {
-    console.error("学生便覧の読み込みエラー:", error);
+    console.error(`${handbookInfo.name}学生便覧の読み込みエラー:`, error);
+    return null;
   }
 }
 
-// チャット API（変更なし）
+// チャット API
 app.post("/api/chat", async (req, res) => {
   try {
-    const { message } = req.body;
+    // リクエストボディから message と faculty を受け取る
+    const { message, faculty } = req.body;
 
-    if (!message) {
-      return res.status(400).json({ error: "メッセージが必要です" });
+    if (!message || !faculty) {
+      return res.status(400).json({ error: "メッセージと学部指定が必要です" });
     }
 
-    const prompt = `
-あなたは神戸大学工学部の学生便覧に詳しいチャットボットです。
-以下の学生便覧の内容に基づいて、ユーザーの質問に回答してください。
+    if (!handbookPaths[faculty]) {
+      return res.status(400).json({ error: "指定された学部は存在しません" });
+    }
 
-# 学生便覧の内容
+    // 指定された学部の学生便覧を読み込む
+    const handbookContent = await loadHandbook(faculty);
+
+    if (!handbookContent) {
+      return res
+        .status(500)
+        .json({ error: "学生便覧の読み込みに失敗しました。" });
+    }
+
+    const facultyName = handbookPaths[faculty].name;
+
+    const prompt = `
+あなたは神戸大学${facultyName}の学生便覧に詳しいチャットボットです。
+以下の${facultyName}学生便覧の内容に基づいて、ユーザーの質問に回答してください。
+
+# ${facultyName}学生便覧の内容
 ${handbookContent}
-# 学生便覧の内容ここまで
+# ${facultyName}学生便覧の内容ここまで
 
 # ユーザーの質問
 ${message}
@@ -88,8 +139,10 @@ ${message}
   }
 });
 
-// サーバー開始（変更なし）
-app.listen(PORT, async () => {
+// サーバー開始
+app.listen(PORT, () => {
   console.log(`サーバーがポート${PORT}で起動しました`);
-  await loadHandbook();
+  // サーバー起動時の事前読み込みは削除
 });
+
+// === ▲▲▲ 変更箇所 ▲▲▲ ===

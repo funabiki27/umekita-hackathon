@@ -24,6 +24,29 @@
         padding: 20px;
         text-align: center;
       }
+      /* === ▼▼▼ 追加スタイル ▼▼▼ === */
+      .faculty-selector {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        padding: 15px;
+        background-color: #f9f9f9;
+        border-bottom: 1px solid #eee;
+      }
+      .faculty-btn {
+        padding: 8px 16px;
+        border: 1px solid #ccc;
+        border-radius: 20px;
+        background-color: white;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .faculty-btn.active {
+        background-color: #667eea;
+        color: white;
+        border-color: #667eea;
+      }
+      /* === ▲▲▲ 追加スタイル ▲▲▲ === */
       .chat-container {
         height: 400px;
         overflow-y: auto;
@@ -90,11 +113,19 @@
     <div class="container">
       <div class="header">
         <h1>📚 学生便覧チャットボット</h1>
-        <p>学生便覧について何でも質問してください！</p>
+        <p>学部を選択して、何でも質問してください！</p>
+      </div>
+
+      <div class="faculty-selector" id="facultySelector">
+        <button class="faculty-btn active" data-faculty="engineering">
+          工学部
+        </button>
+        <button class="faculty-btn" data-faculty="letters">文学部</button>
+        <button class="faculty-btn" data-faculty="science">理学部</button>
       </div>
       <div class="chat-container" id="chatContainer">
         <div class="message bot-message">
-          こんにちは！学生便覧について質問があれば、お気軽にお聞かせください。
+          こんにちは！学部を選択してから、質問をお聞かせください。
         </div>
       </div>
       <div class="input-container">
@@ -111,13 +142,34 @@
       const chatContainer = document.getElementById("chatContainer");
       const messageInput = document.getElementById("messageInput");
       const sendButton = document.getElementById("sendButton");
+      // === ▼▼▼ 追加箇所 ▼▼▼ ===
+      const facultySelector = document.getElementById("facultySelector");
+      let selectedFaculty = "engineering"; // デフォルトの学部
+      // === ▲▲▲ 追加箇所 ▲▲▲ ===
+
+      // === ▼▼▼ 追加箇所 ▼▼▼ ===
+      facultySelector.addEventListener("click", (e) => {
+        if (e.target.tagName === "BUTTON") {
+          // すべてのボタンから active クラスを削除
+          document
+            .querySelectorAll(".faculty-btn")
+            .forEach((btn) => btn.classList.remove("active"));
+          // クリックされたボタンに active クラスを追加
+          e.target.classList.add("active");
+          // 選択された学部を更新
+          selectedFaculty = e.target.dataset.faculty;
+          console.log("Selected faculty:", selectedFaculty);
+        }
+      });
+      // === ▲▲▲ 追加箇所 ▲▲▲ ===
 
       function addMessage(content, isUser = false) {
         const messageDiv = document.createElement("div");
         messageDiv.className = `message ${
           isUser ? "user-message" : "bot-message"
         }`;
-        messageDiv.textContent = content;
+        // 改行を<br>に変換して表示
+        messageDiv.innerHTML = content.replace(/\n/g, "<br>");
         chatContainer.appendChild(messageDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
@@ -142,19 +194,29 @@
         const message = messageInput.value.trim();
         if (!message) return;
 
+        // === ▼▼▼ 変更箇所 ▼▼▼ ===
+        if (!selectedFaculty) {
+          addMessage("エラー: まず学部を選択してください。");
+          return;
+        }
+        // === ▲▲▲ 変更箇所 ▲▲▲ ===
+
         sendButton.disabled = true;
         addMessage(message, true);
         messageInput.value = "";
         showLoading();
 
         try {
+          // === ▼▼▼ 変更箇所 ▼▼▼ ===
+          // リクエストボディに message と faculty を含める
           const response = await fetch("/api/chat", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ message, faculty: selectedFaculty }),
           });
+          // === ▲▲▲ 変更箇所 ▲▲▲ ===
 
           const data = await response.json();
           hideLoading();
@@ -170,6 +232,7 @@
         }
 
         sendButton.disabled = false;
+        messageInput.focus();
       }
 
       sendButton.addEventListener("click", sendMessage);
