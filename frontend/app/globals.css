@@ -1,0 +1,134 @@
+/* frontend/app/globals.css */
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+.container {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  display: flex; /* ★コンテナ自体もFlexboxにして高さを管理 */
+  flex-direction: column; /* 子要素を縦に並べる */
+  height: calc(100vh - 40px); /* 画面の高さからpadding分を引く */
+}
+
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  text-align: center;
+}
+
+.selector-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-bottom: 1px solid #eee;
+}
+
+.selector-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selector-group label {
+  font-size: 16px;
+  color: #333;
+}
+
+.selector-group select {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 16px;
+}
+
+/* --- ▼▼▼ Flexboxを使ったチャットエリアのスタイル ▼▼▼ --- */
+
+.chat-container {
+  flex: 1; /* ★残りの高さをすべて埋める */
+  overflow-y: auto; /* 内容が多ければスクロール */
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+  
+  display: flex;
+  flex-direction: column; /* 要素を縦に並べる */
+  gap: 15px; /* メッセージ間の余白 */
+}
+
+.message {
+  padding: 10px 15px;
+  border-radius: 20px;
+  max-width: 80%;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.user-message {
+  background: #667eea;
+  color: white;
+  align-self: flex-end; /* ★ユーザーメッセージを右に配置 */
+}
+
+.bot-message {
+  background: #f0f0f0;
+  color: #333;
+  align-self: flex-start; /* ★ボットメッセージを左に配置 */
+}
+
+.loading {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+/* --- ▲▲▲ ここまでチャットエリアのスタイル ▲▲▲ --- */
+
+
+.input-container {
+  display: flex;
+  padding: 20px;
+  gap: 10px;
+}
+
+#messageInput {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 25px;
+  outline: none;
+  font-size: 16px;
+}
+
+#messageInput:focus {
+  border-color: #667eea;
+}
+
+#sendButton {
+  padding: 12px 25px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.3s;
+}
+
+#sendButton:hover {
+  background: #5a6fd8;
+}
+
+#sendButton:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
