@@ -17,8 +17,6 @@ app.use(express.static("public"));
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-// === ▼▼▼ 修正箇所 ▼▼▼ ===
-
 // 学部・学科名とPDFファイルのパスをマッピング
 const facultyData = {
   engineering: {
@@ -59,18 +57,19 @@ const facultyData = {
 // 読み込んだPDFコンテンツをキャッシュするオブジェクト
 const handbookCache = {};
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `pdfjs-dist/legacy/build/pdf.worker.js`;
+// PDF.jsのワーカー設定
+pdfjsLib.GlobalWorkerOptions.workerSrc = `node_modules/pdfjs-dist/legacy/build/pdf.worker.js`;
 
 /**
- * 学生便覧を読み込む関数。
- * まず学部に対応するテキストファイル（例: engineering.txt）を探し、
- * 存在すればそれを読み込む。なければPDFを解析し、結果をテキストファイルとして保存する。
+ * 学部に対応する学生便覧PDFを読み込み、テキストに変換して返す関数
+ * @param {string} faculty - 学部キー (e.g., "engineering")
+ * @returns {Promise<string|null>} - PDFの全文テキスト、またはエラーの場合はnull
  */
 async function loadHandbook(faculty) {
   // 1. メモリキャッシュをチェック
   if (handbookCache[faculty]) {
     console.log(
-      `${facultyData[faculty].name}の学生便覧をキャッシュから読み込みました`
+      `${facultyData[faculty].name}の学生便覧をキャッシュから読み込みました`,
     );
     return handbookCache[faculty];
   }
@@ -85,28 +84,22 @@ async function loadHandbook(faculty) {
   const textFilePath = `./handbook_${faculty}.txt`; // 例: ./handbook_engineering.txt
 
   try {
-    // 3. テキストファイルが存在すれば、それを読み込んで返す
+    // 3. 既に読み込み済みのテキストファイルが存在するかチェック
     if (fs.existsSync(textFilePath)) {
-      console.log(`保存済みのテキストファイル (${textFilePath}) を読み込んでいます...`);
-      const handbookContent = fs.readFileSync(textFilePath, "utf8");
-      handbookCache[faculty] = handbookContent; // メモリにキャッシュ
       console.log(
-        `${handbookInfo.name}学生便覧テキストを読み込みました (${handbookContent.length} 文字)`
+        `${handbookInfo.name}の保存済みテキストファイルを読み込んでいます...`,
       );
-      return handbookContent;
+      const fullText = fs.readFileSync(textFilePath, "utf8");
+      handbookCache[faculty] = fullText;
+      console.log(
+        `${handbookInfo.name}学生便覧をテキストファイルから読み込みました (${fullText.length}文字)`,
+      );
+      return fullText;
     }
 
-    // 4. テキストファイルがなければ、PDFを読み込む
-    const pdfPath = handbookInfo.path;
-    if (!fs.existsSync(pdfPath)) {
-      console.error(
-        `${faculty}に対応するPDFファイルが見つかりません: ${pdfPath}`
-      );
-      return null;
-    }
-
-    console.log(`${handbookInfo.name}のPDF (${pdfPath}) を解析しています...`);
-    const dataBuffer = fs.readFileSync(pdfPath);
+    // 4. テキストファイルが存在しない場合は、PDFから抽出
+    console.log(`${handbookInfo.name}のPDFからテキストを抽出中...`);
+    const dataBuffer = fs.readFileSync(handbookInfo.path);
     const doc = await pdfjsLib.getDocument({
       data: new Uint8Array(dataBuffer),
       cMapUrl: "node_modules/pdfjs-dist/cmaps/",
@@ -121,17 +114,19 @@ async function loadHandbook(faculty) {
       const page = await doc.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items.map((item) => item.str).join(" ");
+      // ページ番号をテキストに含めることで、回答の際に参照しやすくなる
       fullText += `--- PAGE ${i} ---\n${pageText}\n\n`;
     }
 
-    // 5. 解析したテキストをメモリにキャッシュし、次回以降のためにファイルにも保存
-    handbookCache[faculty] = fullText;
+    // 5. 抽出したテキストをファイルに保存（次回の高速化のため）
     fs.writeFileSync(textFilePath, fullText, "utf8");
     console.log(
-      `${handbookInfo.name}のテキストを ${textFilePath} に保存しました。`
+      `${handbookInfo.name}学生便覧のテキストを ${textFilePath} に保存しました`,
     );
+
+    handbookCache[faculty] = fullText;
     console.log(
-      `${handbookInfo.name}学生便覧を ${numPages} ページ読み込みました`
+      `${handbookInfo.name}学生便覧を ${numPages} ページ読み込み、キャッシュしました`,
     );
 
     return fullText;
@@ -139,6 +134,78 @@ async function loadHandbook(faculty) {
     console.error(`${handbookInfo.name}学生便覧の読み込みエラー:`, error);
     return null;
   }
+}
+
+/**
+ * 全文テキストから、ユーザーの質問に関連する部分を抽出する関数
+ * @param {string} content - 学生便覧の全文テキスト
+ * @param {string} query - ユーザーからの質問
+ * @returns {string} - 抽出された関連部分のテキスト
+ */
+function extractRelevantContent(content, query) {
+  const maxLength = 100000; // APIに送る最大文字数。gemini-1.5-flashはコンテキストウィンドウが広いが、念のため制限
+  const contextLines = 3; // 関連行の前後何行を含めるか
+
+  if (!query) {
+    // 質問がない場合は、コンテンツの先頭部分を返す
+    return content.length > maxLength
+      ? content.substring(0, maxLength) + "\n...(内容が長いため省略)"
+      : content;
+  }
+
+  // クエリをキーワードに分割（助詞などを除外するため2文字以上）
+  const queryKeywords = [
+    ...new Set(
+      query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((kw) => kw.length > 1),
+    ),
+  ];
+  const lines = content.split("\n");
+  const relevantLineNumbers = new Set();
+
+  // キーワードが含まれる行とその前後の行番号を収集
+  lines.forEach((line, i) => {
+    const lowerLine = line.toLowerCase();
+    const isRelevant = queryKeywords.some((keyword) =>
+      lowerLine.includes(keyword),
+    );
+
+    if (isRelevant) {
+      for (
+        let j = Math.max(0, i - contextLines);
+        j <= Math.min(lines.length - 1, i + contextLines);
+        j++
+      ) {
+        relevantLineNumbers.add(j);
+      }
+    }
+  });
+
+  if (relevantLineNumbers.size === 0) {
+    // 関連行が見つからない場合は、全文の先頭部分を返す
+    console.log("関連キーワードが見つからなかったため、冒頭部分を使用します。");
+    return content.length > maxLength
+      ? content.substring(0, maxLength) + "\n...(内容が長いため省略)"
+      : content;
+  }
+
+  // 収集した行番号を昇順にソートし、テキストを再構築
+  let result = Array.from(relevantLineNumbers)
+    .sort((a, b) => a - b)
+    .map((lineNumber) => lines[lineNumber])
+    .join("\n");
+
+  // 長すぎる場合は末尾をカット
+  if (result.length > maxLength) {
+    result = result.substring(0, maxLength) + "\n...(関連内容が長いため省略)";
+  }
+
+  console.log(
+    `全文 ${content.length}文字から、関連部分 ${result.length}文字を抽出しました。`,
+  );
+  return result;
 }
 
 // チャット API
@@ -161,7 +228,7 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "指定された学科は存在しません" });
     }
 
-    // 対応する学部の学生便覧を読み込む（キャッシュも利用）
+    // 学部に対応するPDFを読み込む
     const handbookContent = await loadHandbook(faculty);
 
     if (!handbookContent) {
@@ -172,24 +239,24 @@ app.post("/api/chat", async (req, res) => {
 
     const facultyName = facultyInfo.name;
 
-    // RAG検索（関連箇所抽出）は行わず、全文をコンテキストとして渡す
-    const prompt = `
-あなたは神戸大学${facultyName}の学生便覧に詳しいチャットボットです。
-ユーザーは特に「${departmentName}」に関する情報を探しています。
-以下の${facultyName}学生便覧の内容に基づいて、ユーザーの質問に回答してください。
+    // ★★★ レート制限対策: 質問に関連する部分だけを抽出 ★★★
+    const relevantContent = extractRelevantContent(handbookContent, message);
 
-# ${facultyName}学生便覧の内容
-${handbookContent}
-# ${facultyName}学生便覧の内容ここまで
+    const prompt = `あなたは神戸大学${facultyName}の学生便覧に詳しいチャットボットです。
+ユーザーは特に「${departmentName}」に関する情報を探しています。
+以下の${facultyName}学生便覧の関連内容に基づいて、ユーザーの質問に回答してください。
+
+# ${facultyName}学生便覧の関連内容
+${relevantContent}
+# ${facultyName}学生便覧の関連内容 ここまで
 
 # ユーザーの質問
 ${message}
 
 # 回答のルール
-- あなたの知識ではなく、上記の学生便覧の内容のみを情報源としてください。
+- あなた自身の知識ではなく、上記の「${facultyName}学生便覧の関連内容」のみを情報源としてください。
 - 回答は「${departmentName}」の学生に関連する内容を優先してください。
 - 回答する際は、該当する情報が記載されているページ番号を必ず含めてください（例：「○ページに記載されています」）。
-- 該当する情報が複数ある場合は必ずすべてのページ番号を記載してください。
 - 学生便覧に記載されていない内容については、「学生便覧に記載されていません」と明確に回答してください。
 - 回答は日本語で、分かりやすく説明してください。
 `;
@@ -202,22 +269,27 @@ ${message}
   } catch (error) {
     console.error("チャットエラー:", error);
 
-    // レート制限エラーの場合
+    // レート制限エラー（429 Too Many Requests）の場合
     if (error.message.includes("429") || error.message.includes("quota")) {
       return res.status(429).json({
         error:
-          "現在、AIサービスの利用制限に達しています。しばらく時間をおいてから再度お試しください。",
-        retryAfter: 60, // 60秒後に再試行
+          "現在、AIへのリクエストが集中しています。大変申し訳ありませんが、1分ほど時間をおいてから再度お試しください。",
+        // retryAfter: 60, // フロントエンドでこの秒数待機させる目安
       });
     }
 
-    res.status(500).json({ error: "サーバーエラーが発生しました" });
+    // その他のサーバーエラー
+    res
+      .status(500)
+      .json({ error: "サーバー内部で予期せぬエラーが発生しました。" });
   }
 });
 
 // サーバー開始
 app.listen(PORT, () => {
   console.log(`サーバーがポート${PORT}で起動しました`);
+  // サーバー起動時に、主要なPDFを予め読み込んでキャッシュしておくことも可能
+  // loadHandbook('engineering'); // 例：工学部の便覧を事前ロード
 });
 
-// === ▲▲▲ 修正箇所 ▲▲▲ ===
+// === ▲▲▲ 変更箇所 ▲▲▲ ===
