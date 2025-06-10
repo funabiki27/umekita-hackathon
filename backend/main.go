@@ -1,16 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
-	"strconv"
-	"strings"
-	"sync"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -113,130 +108,32 @@ var facultyData = map[string]Faculty{
 	// === ▲▲▲ ここまで追加 ▲▲▲ ===
 }
 
-// PDFコンテンツをキャッシュするオブジェクトと、それを保護するためのMutex
-var (
-	handbookCache = make(map[string]string)
-	cacheMutex    = sync.RWMutex{}
-)
-
-// PDFからテキストを抽出する関数 (Popplerを使用する新バージョン)
-func extractTextFromPDF(path string) (string, int, error) {
-	// 1. `pdfinfo`コマンドで総ページ数を取得
-	cmdInfo := exec.Command("pdfinfo", path)
-	var outInfo bytes.Buffer
-	cmdInfo.Stdout = &outInfo
-	if err := cmdInfo.Run(); err != nil {
-		log.Printf("pdfinfoの実行に失敗しました。Popplerはインストールされていますか？: %v", err)
-		return "", 0, fmt.Errorf("pdfinfoの実行エラー: %w", err)
-	}
-
-	numPages := 0
-	for _, line := range strings.Split(outInfo.String(), "\n") {
-		if strings.HasPrefix(line, "Pages:") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				p, err := strconv.Atoi(parts[1])
-				if err == nil {
-					numPages = p
-					break
-				}
-			}
-		}
-	}
-
-	if numPages == 0 {
-		return "", 0, fmt.Errorf("PDFのページ数が取得できませんでした")
-	}
-
-	// 2. `pdftotext`コマンドでページごとにテキストを抽出
-	var fullText strings.Builder
-	for i := 1; i <= numPages; i++ {
-		// -f: 開始ページ, -l: 終了ページ, 最後の"-": 標準出力へ書き出す
-		cmdText := exec.Command("pdftotext", "-f", strconv.Itoa(i), "-l", strconv.Itoa(i), path, "-")
-		var outText bytes.Buffer
-		var errText bytes.Buffer
-		cmdText.Stdout = &outText
-		cmdText.Stderr = &errText
-
-		err := cmdText.Run()
-		if err != nil {
-			// エラーが出ても処理を続行することが望ましい場合がある
-			log.Printf("ページのテキスト抽出中にエラー (ページ %d): %v, Stderr: %s", i, err, errText.String())
-		}
-
-		pageContent := outText.String()
-		fullText.WriteString(fmt.Sprintf("--- PAGE %d ---\n%s\n\n", i, pageContent))
-	}
-
-	return fullText.String(), numPages, nil
-}
-
-// 学生便覧を読み込む関数 (キャッシュ対応)
+// 学生便覧を読み込む関数
 func loadHandbook(facultyKey string) (string, error) {
-	// 1. メモリキャッシュをチェック (Read Lock)
-	cacheMutex.RLock()
-	content, found := handbookCache[facultyKey]
-	cacheMutex.RUnlock()
-	if found {
-		log.Printf("%sの学生便覧をキャッシュから読み込みました\n", facultyData[facultyKey].Name)
-		return content, nil
-	}
-
-	// Write Lock (これからファイル読み書きやキャッシュへの書き込みを行うため)
-	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
-
-	// ダブルチェック（他のゴルーチンが待っている間にキャッシュを書き込んだ可能性を考慮）
-	content, found = handbookCache[facultyKey]
-	if found {
-		return content, nil
-	}
-
 	facultyInfo, ok := facultyData[facultyKey]
 	if !ok {
 		return "", fmt.Errorf("%sに対応する設定が見つかりません", facultyKey)
 	}
 
-	// 2. テキストファイルのパスを定義
+	// テキストファイルのパスを定義
 	textFilePath := fmt.Sprintf("./handbook_%s.txt", facultyKey)
 
-	// 3. テキストファイルが存在すれば、それを読み込んで返す
-	if _, err := os.Stat(textFilePath); err == nil {
-		log.Printf("保存済みのテキストファイル (%s) を読み込んでいます...\n", textFilePath)
-		fileContent, err := os.ReadFile(textFilePath)
-		if err != nil {
-			return "", fmt.Errorf("テキストファイルの読み込みエラー: %w", err)
-		}
-		handbookContent := string(fileContent)
-		handbookCache[facultyKey] = handbookContent // メモリにキャッシュ
-		log.Printf("%s学生便覧テキストを読み込みました (%d 文字)\n", facultyInfo.Name, len(handbookContent))
-		return handbookContent, nil
+	// テキストファイルが存在するかチェック
+	if _, err := os.Stat(textFilePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("%s学生便覧のテキストファイルが見つかりません: %s", facultyInfo.Name, textFilePath)
 	}
 
-	// 4. テキストファイルがなければ、PDFを読み込む
-	pdfPath := facultyInfo.Path
-	if _, err := os.Stat(pdfPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("%sに対応するPDFファイルが見つかりません: %s", facultyKey, pdfPath)
-	}
-
-	log.Printf("%sのPDF (%s) を解析しています...\n", facultyInfo.Name, pdfPath)
-	fullText, numPages, err := extractTextFromPDF(pdfPath)
+	// テキストファイルを読み込み
+	log.Printf("テキストファイル (%s) を読み込んでいます...\n", textFilePath)
+	fileContent, err := os.ReadFile(textFilePath)
 	if err != nil {
-		return "", fmt.Errorf("%s学生便覧の読み込みエラー: %w", facultyInfo.Name, err)
+		return "", fmt.Errorf("テキストファイルの読み込みエラー: %w", err)
 	}
-	log.Printf("%s学生便覧のページ数: %d\n", facultyInfo.Name, numPages)
-
-	// 5. 解析したテキストをファイルに保存し、メモリにキャッシュ
-	err = os.WriteFile(textFilePath, []byte(fullText), 0644)
-	if err != nil {
-		log.Printf("警告: テキストファイルの保存に失敗しました: %v\n", err)
-	} else {
-		log.Printf("%sのテキストを %s に保存しました。\n", facultyInfo.Name, textFilePath)
-	}
-	handbookCache[facultyKey] = fullText
-	log.Printf("%s学生便覧を %d ページ読み込みました\n", facultyInfo.Name, numPages)
-
-	return fullText, nil
+	
+	handbookContent := string(fileContent)
+	log.Printf("%s学生便覧テキストを読み込みました (%d 文字)\n", facultyInfo.Name, len(handbookContent))
+	
+	return handbookContent, nil
 }
 
 // チャットAPIのハンドラ
