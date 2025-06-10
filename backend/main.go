@@ -12,111 +12,19 @@ import (
 	"github.com/google/generative-ai-go/genai"
 	"github.com/joho/godotenv"
 	"google.golang.org/api/option"
+	"chatbot-backend/commondata"
 )
-
-// 学科情報を保持する構造体
-type Department struct {
-	Name string
-}
-
-// 学部情報を保持する構造体
-type Faculty struct {
-	Name        string
-	Path        string
-	Departments map[string]Department
-}
-
-// 学部・学科データの定義
-var facultyData = map[string]Faculty{
-	"engineering": {
-		Name: "工学部",
-		Path: "./binran_all/kougaku_2024.pdf",
-		Departments: map[string]Department{
-			"mechanical":        {Name: "機械工学科"},
-			"electrical":        {Name: "電気電子工学科"},
-			"computer_science":  {Name: "情報知能工学科"},
-			"applied_chemistry": {Name: "応用化学科"},
-			"civil_engineering": {Name: "市民工学科"},
-			"architecture":      {Name: "建築学科"},
-		},
-	},
-	"letters": {
-		Name: "文学部",
-		Path: "./binran_all/bungaku_2024.pdf",
-		Departments: map[string]Department{
-			"philosophy":       {Name: "哲学・倫理学専修"},
-			"history":          {Name: "歴史学専修"},
-			"literature":       {Name: "文学専修"},
-			"cultural_studies": {Name: "文化学専修"},
-		},
-	},
-	"science": {
-		Name: "理学部",
-		Path: "./book_science.pdf", // このパスは仮です。必要に応じて修正してください。
-		Departments: map[string]Department{
-			"mathematics": {Name: "数学科"},
-			"physics":     {Name: "物理学科"},
-			"chemistry":   {Name: "化学科"},
-			"biology":     {Name: "生物学科"},
-			"planetology": {Name: "惑星学科"},
-		},
-	},
-	// === ▼▼▼ ここから追加 ▼▼▼ ===
-	"medicine": {
-		Name: "医学部",
-		Path: "./binran_all/hoken_2024.pdf", // 仮のパス
-		Departments: map[string]Department{
-			"nursing":              {Name: "看護学専攻"},
-			"medical_technology":   {Name: "検査技術科学専攻"},
-			"physical_therapy":     {Name: "理学療法学専攻"},
-			"occupational_therapy": {Name: "作業療法学専攻"},
-		},
-	},
-	"business_administration": {
-		Name: "経営学部",
-		Path: "./binran_all/keiei_2024.pdf", // 仮のパス
-		Departments: map[string]Department{
-			"business_administration": {Name: "経営学科"},
-		},
-	},
-	"global_human_sciences": {
-		Name: "国際人間科学部",
-		Path: "./binran_all/kokusainingen_2024.pdf", // 仮のパス
-		Departments: map[string]Department{
-			"global_cultures":      {Name: "グローバル文化学科"},
-			"developed_community":  {Name: "発達コミュニティ学科"},
-			"environment_and_sustainability": {Name: "環境共生学科"},
-			"child_education":      {Name: "子ども教育学科"},
-		},
-	},
-	"agriculture": {
-		Name: "農学部",
-		Path: "./binran_all/nougaku_2024.pdf", // 仮のパス
-		Departments: map[string]Department{
-			"agro-environmental_science": {Name: "食料環境システム学科"},
-			"bioresource_science":        {Name: "資源生命科学科"},
-			"agrobioscience":             {Name: "生命機能科学科"},
-		},
-	},
-	"maritime_sciences": {
-		Name: "海洋政策科学部",
-		Path: "./binran_all/kaiyo_2024.pdf", // 仮のパス
-		Departments: map[string]Department{
-			"maritime_sciences": {Name: "海洋政策科学科"},
-		},
-	},
-	// === ▲▲▲ ここまで追加 ▲▲▲ ===
-}
 
 // 学生便覧を読み込む関数
 func loadHandbook(facultyKey string) (string, error) {
-	facultyInfo, ok := facultyData[facultyKey]
+	// ★★★ commondata パッケージの FacultyData を使うように変更 ★★★
+	facultyInfo, ok := commondata.FacultyData[facultyKey]
 	if !ok {
 		return "", fmt.Errorf("%sに対応する設定が見つかりません", facultyKey)
 	}
 
 	// テキストファイルのパスを定義
-	textFilePath := fmt.Sprintf("./handbook_%s.txt", facultyKey)
+	textFilePath := fmt.Sprintf("../binran_all_text/handbook_%s.txt", facultyKey)
 
 	// テキストファイルが存在するかチェック
 	if _, err := os.Stat(textFilePath); os.IsNotExist(err) {
@@ -129,10 +37,10 @@ func loadHandbook(facultyKey string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("テキストファイルの読み込みエラー: %w", err)
 	}
-	
+
 	handbookContent := string(fileContent)
 	log.Printf("%s学生便覧テキストを読み込みました (%d 文字)\n", facultyInfo.Name, len(handbookContent))
-	
+
 	return handbookContent, nil
 }
 
@@ -155,11 +63,11 @@ func chatHandler(c *gin.Context) {
 		return
 	}
 
-	facultyInfo, ok := facultyData[requestBody.Faculty]
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "指定された学部は存在しません"})
-		return
-	}
+	facultyInfo, ok := commondata.FacultyData[requestBody.Faculty]
+    if !ok {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "指定された学部は存在しません"})
+        return
+    }
 	departmentInfo, ok := facultyInfo.Departments[requestBody.Department]
 	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "指定された学科は存在しません"})
