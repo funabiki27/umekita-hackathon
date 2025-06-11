@@ -96,7 +96,9 @@ export default function Home() {
       alert("学部と学科を選択してください。");
       return;
     }
-    
+    // ★ ユーザーの新しいメッセージを追加する前の、現在の会話履歴を保持
+    const currentHistory = [...messages];
+
     const userMessage: Message = { content: trimmedInput, isUser: true };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
@@ -110,6 +112,7 @@ export default function Home() {
           message: trimmedInput,
           faculty: selectedFaculty,
           department: selectedDepartment,
+          history: currentHistory, // ★ 現在の質問を追加する前の履歴を渡す
         }),
       });
 
