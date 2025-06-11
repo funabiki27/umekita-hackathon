@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -15,6 +16,11 @@ import (
 	"chatbot-backend/commondata"
 )
 
+// ★ フロントエンドから送られてくる会話履歴の型を定義
+type ChatMessage struct {
+	IsUser  bool   `json:"isUser"`
+	Content string `json:"content"`
+}
 // 学生便覧を読み込む関数
 func loadHandbook(facultyKey string) (string, error) {
 	// ★★★ commondata パッケージの FacultyData を使うように変更 ★★★
@@ -48,9 +54,10 @@ func loadHandbook(facultyKey string) (string, error) {
 func chatHandler(c *gin.Context) {
 	// リクエストボディを定義
 	var requestBody struct {
-		Message    string `json:"message"`
-		Faculty    string `json:"faculty"`
-		Department string `json:"department"`
+		Message    string        `json:"message"`
+		Faculty    string        `json:"faculty"`
+		Department string        `json:"department"`
+		History    []ChatMessage `json:"history"`
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
@@ -63,16 +70,18 @@ func chatHandler(c *gin.Context) {
 		return
 	}
 
+	// ▼▼▼ 【修正点1】 facultyInfo と departmentInfo の定義を追加 ▼▼▼
 	facultyInfo, ok := commondata.FacultyData[requestBody.Faculty]
-    if !ok {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "指定された学部は存在しません"})
-        return
-    }
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "指定された学部は存在しません"})
+		return
+	}
 	departmentInfo, ok := facultyInfo.Departments[requestBody.Department]
 	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "指定された学科は存在しません"})
 		return
 	}
+	// ▲▲▲ ここまで追加 ▲▲▲
 
 	// 学生便覧を読み込む
 	handbookContent, err := loadHandbook(requestBody.Faculty)
@@ -83,7 +92,6 @@ func chatHandler(c *gin.Context) {
 	}
 
 	ctx := context.Background()
-	// Geminiクライアントの初期化
 	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")))
 	if err != nil {
 		log.Printf("Geminiクライアント作成エラー: %v", err)
@@ -94,36 +102,61 @@ func chatHandler(c *gin.Context) {
 
 	model := client.GenerativeModel("gemini-1.5-flash")
 
-	// プロンプトの組み立て
-	prompt := fmt.Sprintf(`
-あなたは神戸大学%sの学生便覧に詳しいチャットボットです。
-ユーザーは特に「%s」に関する情報を探しています。
-以下の%s学生便覧の内容に基づいて、ユーザーの質問に回答してください。
+	// 会話履歴を文字列に変換する
+	var historyBuilder strings.Builder
+	for _, msg := range requestBody.History {
+		role := "AI"
+		if msg.IsUser {
+			role = "ユーザー"
+		}
+		historyBuilder.WriteString(fmt.Sprintf("%s: %s\n", role, msg.Content))
+	}
 
-# %s学生便覧の内容
-%s
-# %s学生便覧の内容ここまで
+	// プロンプトに会話履歴を追加
+		prompt := fmt.Sprintf(`
+	あなたは神戸大学%sの学生便覧に詳しいチャットボットです。
+	ユーザーは特に「%s」に関する情報を探しています。
+	以下の%s学生便覧とこれまでの会話の文脈を考慮して、ユーザーの新しい質問に回答してください。
 
-# ユーザーの質問
-%s
+	# %s学生便覧の内容
+	%s
+	# %s学生便覧の内容ここまで
 
-# 回答のルール
-- あなたの知識ではなく、上記の学生便覧の内容のみを情報源としてください。
-- 回答は「%s」の学生に関連する内容を優先してください。
-- 回答する際は、該当する情報が記載されているページ番号を必ず含めてください（例：「○ページに記載されています」）。
-- 学生便覧に記載されていない内容については、「学生便覧に記載されていません」と明確に回答してください。
-- 回答は日本語で、分かりやすく説明してください。
-`, facultyInfo.Name, departmentInfo.Name, facultyInfo.Name, facultyInfo.Name, handbookContent, facultyInfo.Name, requestBody.Message, departmentInfo.Name)
+	# これまでの会話履歴
+	%s
+	# これまでの会話履歴ここまで
 
+	# ユーザーの新しい質問
+	%s
+
+	# 回答のルール
+	- あなたの知識ではなく、上記の学生便覧の内容と会話履歴のみを情報源としてください。
+	- 回答は「%s」の学生に関連する内容を優先してください。
+	- ページ番号はテキストファイルに「PAGE 数字」のように書かれています。回答でページ数を言うときは「○PAGE」ではなく「○ページ」で示してください。
+	- 回答する際は、該当する情報が記載されているページ番号を必ず含めてください（例：「○ページに記載されています」）。
+	- 学生便覧に記載されていない内容については、「学生便覧に記載されていません」と明確に回答してください。
+	- 回答は日本語で、分かりやすく説明してください。
+	`,
+			// ▼▼▼ ここからが正しい引数リストです ▼▼▼
+			facultyInfo.Name,          // 1. 神戸大学%s
+			departmentInfo.Name,       // 2. 「%s」に関する情報
+			facultyInfo.Name,          // 3. 以下の%s学生便覧
+			facultyInfo.Name,          // 4. # %s学生便覧の内容
+			handbookContent,           // 5. (便覧の本文)
+			facultyInfo.Name,          // 6. # %s学生便覧の内容ここまで
+			historyBuilder.String(),   // 7. (会話履歴)
+			requestBody.Message,       // 8. (ユーザーの新しい質問)
+			departmentInfo.Name,       // 9. 「%s」の学生に
+			// ▲▲▲ ここまで ▲▲▲
+		)
+	// ▼▼▼ 【修正点2】 レスポンス処理を正しく記述 ▼▼▼
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
-		// ここでエラー内容を判定して、レートリミットなどの詳細なエラーを返すことも可能
 		log.Printf("Geminiコンテンツ生成エラー: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AIからの応答取得に失敗しました"})
 		return
 	}
 
-	// レスポンスからテキスト部分を抽出
 	var responseText string
 	if len(resp.Candidates) > 0 && resp.Candidates[0].Content != nil && len(resp.Candidates[0].Content.Parts) > 0 {
 		if txt, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
@@ -134,6 +167,7 @@ func chatHandler(c *gin.Context) {
 	if responseText == "" {
 		responseText = "AIから有効な回答を得られませんでした。"
 	}
+	// ▲▲▲ ここまで修正 ▲▲▲
 
 	c.JSON(http.StatusOK, gin.H{"response": responseText})
 }
