@@ -1,4 +1,4 @@
-name: プレビューデプロイ
+name: Vercel Preview Deployment
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -7,37 +7,15 @@ on:
     branches-ignore:
       - main
 jobs:
-  deploy-preview:
+  Deploy-Preview:
     runs-on: ubuntu-latest
     steps:
-      - name: チェックアウト
-        uses: actions/checkout@v4
-
-      - name: Node.jsのインストール
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: pnpmのインストール
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - name: 依存関係のインストール
-        run: pnpm install
-
-      - name: Vercel CLIのインストール
-        run: pnpm install -g vercel@latest
-
-      - name: Vercelからプレビュー環境用設定を取得
+      - uses: actions/checkout@v2
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Pull Vercel Environment Information
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: プレビュー用ビルド
+      - name: Build Project Artifacts
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: 成果物をプレビュー環境でデプロイ
-        id: deploy
-        run: |
-          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
-          echo "url=$URL" >> $GITHUB_OUTPUT
-          echo "✅ Preview deployed to: $URL"
+      - name: Deploy Project Artifacts to Vercel
+        run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
