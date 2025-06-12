@@ -21,8 +21,8 @@ import (
 
 // Server はアプリケーションの依存関係（設定やクライアントなど）を保持します。
 type Server struct {
-	genaiClient    *genai.GenerativeModel
-	handbookDir    string // 学生便覧テキストが格納されているディレクトリ
+	genaiClient *genai.GenerativeModel
+	handbookDir string // 学生便覧テキストが格納されているディレクトリ
 }
 
 // ChatMessage はフロントエンドから送られてくる会話履歴の型です。
@@ -62,15 +62,15 @@ func generatePrompt(facultyName, departmentName, handbookContent, history, userM
 - 回答は日本語で、分かりやすく説明してください。
 `
 	return fmt.Sprintf(promptTemplate,
-		facultyName,      // 1. 神戸大学%s
-		departmentName,   // 2. 「%s」に関する情報
-		facultyName,      // 3. 以下の%s学生便覧
-		facultyName,      // 4. # %s学生便覧の内容
+		facultyName,    // 1. 神戸大学%s
+		departmentName, // 2. 「%s」に関する情報
+		facultyName,    // 3. 以下の%s学生便覧
+		facultyName,    // 4. # %s学生便覧の内容
 		handbookContent,  // 5. (便覧の本文)
-		facultyName,      // 6. # %s学生便覧の内容ここまで
-		history,          // 7. (会話履歴)
-		userMessage,      // 8. (ユーザーの新しい質問)
-		departmentName,   // 9. 「%s」の学生に
+		facultyName,    // 6. # %s学生便覧の内容ここまで
+		history,        // 7. (会話履歴)
+		userMessage,    // 8. (ユーザーの新しい質問)
+		departmentName, // 9. 「%s」の学生に
 	)
 }
 
@@ -210,8 +210,8 @@ func main() {
 
 	// Server構造体を初期化
 	server := &Server{
-		genaiClient:    client.GenerativeModel("gemini-1.5-flash"),
-		handbookDir:    handbookDir,
+		genaiClient: client.GenerativeModel("gemini-1.5-flash"),
+		handbookDir: handbookDir,
 	}
 
 	// Ginルーターの初期化と設定
@@ -222,12 +222,21 @@ func main() {
 		"http://localhost:3000",
 		"https://a4-handbook-ai.vercel.app", // 末尾のスラッシュは不要
 	}
-	config.AllowMethods = []string{"POST", "OPTIONS"}
+	// ★ 修正点1: GETメソッドを許可リストに追加
+	config.AllowMethods = []string{"GET", "POST", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type"}
 	router.Use(cors.New(config))
 
 	// APIルートとハンドラを紐付け
 	router.POST("/api/chat", server.chatHandler)
+
+	// ★★★ 修正点2: helloを返すエンドポイントを追加 ★★★
+	router.GET("/api/hello", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Hello from Go backend!",
+		})
+	})
+	// ★★★ ここまで ★★★
 
 	// サーバーを起動
 	port := "8080"
