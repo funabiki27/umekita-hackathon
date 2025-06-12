@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from "react";
 
 // 学部・学科のデータを定義
 const departmentsByFaculty = {
@@ -59,13 +59,13 @@ interface Message {
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // ★★★ 初期値を空('')に変更 ★★★
-  const [selectedFaculty, setSelectedFaculty] = useState<FacultyKey | ''>('');
-  const [selectedDepartment, setSelectedDepartment] = useState('');
-  
+  const [selectedFaculty, setSelectedFaculty] = useState<FacultyKey | "">("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // ★★★ 学部が選択/非選択になった際の処理を修正 ★★★
@@ -77,14 +77,15 @@ export default function Home() {
       setSelectedDepartment(firstDepartmentKey);
     } else {
       // 学部が選択されていない状態になったら、学科もリセットする
-      setSelectedDepartment('');
+      setSelectedDepartment("");
     }
   }, [selectedFaculty]);
 
   // メッセージが追加されたら、一番下までスクロール
   useEffect(() => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      chatContainerRef.current.scrollTop =
+        chatContainerRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
 
@@ -100,14 +101,16 @@ export default function Home() {
     const currentHistory = [...messages];
 
     const userMessage: Message = { content: trimmedInput, isUser: true };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
     setIsLoading(true);
 
+    const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
     try {
-      const response = await fetch('http://localhost:8080/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(`${API_URL}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: trimmedInput,
           faculty: selectedFaculty,
@@ -117,14 +120,25 @@ export default function Home() {
       });
 
       const data = await response.json();
-      const responseMessage = data.response || `エラー (${response.status}): ${data.error || '不明なエラー'}`;
-      setMessages(prev => [...prev, { content: responseMessage, isUser: false }]);
-
+      const responseMessage =
+        data.response ||
+        `エラー (${response.status}): ${data.error || "不明なエラー"}`;
+      setMessages((prev) => [
+        ...prev,
+        { content: responseMessage, isUser: false },
+      ]);
     } catch (error) {
-        console.error("Fetch error:", error);
-        setMessages(prev => [...prev, { content: "通信エラーが発生しました。バックエンドサーバーが起動しているか確認してください。", isUser: false }]);
+      console.error("Fetch error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          content:
+            "通信エラーが発生しました。バックエンドサーバーが起動しているか確認してください。",
+          isUser: false,
+        },
+      ]);
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -138,16 +152,18 @@ export default function Home() {
       <div className="selector-container">
         <div className="selector-group">
           <label htmlFor="facultySelect">学部:</label>
-          <select 
+          <select
             id="facultySelect"
             value={selectedFaculty}
             onChange={(e) => setSelectedFaculty(e.target.value as FacultyKey)}
             disabled={isLoading}
           >
             {/* ★★★ プレースホルダー（未選択時の表示）を追加 ★★★ */}
-            <option value="" disabled>学部を選択</option>
-            
-            {Object.keys(departmentsByFaculty).map(facultyKey => (
+            <option value="" disabled>
+              学部を選択
+            </option>
+
+            {Object.keys(departmentsByFaculty).map((facultyKey) => (
               <option key={facultyKey} value={facultyKey}>
                 {
                   {
@@ -167,38 +183,45 @@ export default function Home() {
         </div>
         <div className="selector-group">
           <label htmlFor="departmentSelect">学科:</label>
-          <select 
+          <select
             id="departmentSelect"
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
             disabled={isLoading || !selectedFaculty} // ★★★ 学部が未選択なら非活性化 ★★★
           >
             {/* ★★★ プレースホルダーを追加 ★★★ */}
-            <option value="" disabled>学科を選択</option>
+            <option value="" disabled>
+              学科を選択
+            </option>
 
             {/* ★★★ 学部が選択されている場合のみ学科を表示 ★★★ */}
-            {selectedFaculty && Object.entries(departmentsByFaculty[selectedFaculty]).map(([key, name]) => (
-              <option key={key} value={key}>{name}</option>
-            ))}
+            {selectedFaculty &&
+              Object.entries(departmentsByFaculty[selectedFaculty]).map(
+                ([key, name]) => (
+                  <option key={key} value={key}>
+                    {name}
+                  </option>
+                ),
+              )}
           </select>
         </div>
       </div>
-      
+
       <div className="chat-container" ref={chatContainerRef} id="chatContainer">
         <div className="message bot-message">
           こんにちは！学部と学科を選択してから、質問をお聞かせください。
         </div>
         {messages.map((msg, index) => (
-          <div 
-            key={index} 
-            className={`message ${msg.isUser ? 'user-message' : 'bot-message'}`}
-            dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br />') }}
+          <div
+            key={index}
+            className={`message ${msg.isUser ? "user-message" : "bot-message"}`}
+            dangerouslySetInnerHTML={{
+              __html: msg.content.replace(/\n/g, "<br />"),
+            }}
           />
         ))}
         {isLoading && (
-            <div className="message bot-message loading">
-                回答を生成中...
-            </div>
+          <div className="message bot-message loading">回答を生成中...</div>
         )}
       </div>
 
@@ -209,13 +232,13 @@ export default function Home() {
           placeholder="質問を入力してください..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+          onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
           disabled={isLoading}
         />
-        <button 
-            id="sendButton" 
-            onClick={handleSendMessage} 
-            disabled={isLoading || !selectedFaculty || !selectedDepartment} // ★★★ 学部学科が未選択なら非活性化 ★★★
+        <button
+          id="sendButton"
+          onClick={handleSendMessage}
+          disabled={isLoading || !selectedFaculty || !selectedDepartment} // ★★★ 学部学科が未選択なら非活性化 ★★★
         >
           送信
         </button>
