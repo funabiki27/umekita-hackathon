@@ -186,7 +186,7 @@ func main() {
 	config := cors.DefaultConfig()
 	config.AllowOrigins = []string{
 		"http://localhost:3000",
-		"https://a4-handbook-lb3sh4g5q-2415010t-7435s-projects.vercel.app",
+		"https://a4-handbook-ai.vercel.app/",
 	}
 	config.AllowMethods = []string{"GET", "POST", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type"}
