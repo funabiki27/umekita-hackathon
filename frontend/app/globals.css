@@ -1,134 +1,299 @@
 /* frontend/app/globals.css */
 
+/* --- CSSカスタムプロパティ (変数) の定義 --- */
+/* よく使う色やサイズを変数として定義し、一貫性と管理のしやすさを向上 */
+:root {
+  --primary-color: #667eea;
+  --secondary-color: #764ba2;
+  --text-dark: #333;
+  --text-light: #fff;
+  --bg-light: #f5f5f5;
+  --bg-white: #fff;
+  --border-color: #ddd;
+
+  /* 基本フォントサイズ。rem計算の基準になります (1rem = 16px) */
+  font-size: 16px;
+}
+
+/* --- 全体的なスタイル --- */
+/* body要素を画面全体に広げ、スクロールを制御 */
 body {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-  background-color: #f5f5f5;
+  margin: 0; /* ブラウザのデフォルトマージンを削除 */
+  padding: 0; /* ブラウザのデフォルトパディングを削除 */
+  background-color: var(--bg-light); /* 背景色を変数で指定 */
+  line-height: 1.6; /* 行の高さを設定し、テキストを読みやすく */
+  box-sizing: border-box; /* paddingとborderをwidthに含める */
+  overflow: hidden; /* body全体のスクロールを無効にする（チャットエリア内のみスクロールさせるため） */
+  height: 100vh; /* bodyをビューポートの高さ100%にする */
+  /* iOS Safari向けの高さ調整。ツールバーの影響を軽減 */
+  height: -webkit-fill-available;
+  min-height: 100vh;
+  /* PCでの最大幅と中央寄せ、パディングを削除し、画面全体に広がるように */
+  /* max-width: 800px; */
+  /* margin: 0 auto; */
+  /* padding: 20px; */
 }
 
+/* box-sizing: border-box; を全ての要素に適用するグローバルリセット (推奨) */
+*, *::before, *::after {
+  box-sizing: inherit; /* bodyのbox-sizingを継承 */
+}
+
+
+/* --- コンテナの調整 --- */
+/* チャットボットのメインコンテナ。Flexboxで内部要素を配置 */
 .container {
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  display: flex; /* ★コンテナ自体もFlexboxにして高さを管理 */
-  flex-direction: column; /* 子要素を縦に並べる */
-  height: calc(100vh - 40px); /* 画面の高さからpadding分を引く */
+  background: var(--bg-white); /* 背景色を変数で指定 */
+  border-radius: 0; /* PCでも角丸をなくし、画面全体に一体化 */
+  box-shadow: none; /* PCでも影をなくし、画面全体に一体化 */
+  overflow: hidden; /* コンテナからはみ出る内容を隠す */
+  display: flex; /* Flexboxコンテナとして設定 */
+  flex-direction: column; /* 子要素を縦方向に並べる */
+  height: 100vh; /* コンテナもビューポートの高さ100%にする */
+  max-width: 100%; /* PCでも最大幅を100%にし、画面いっぱいに広がる */
+  margin: 0 auto; /* 中央寄せは維持するが、max-width:100%で効果は薄れる */
 }
 
+/* --- ヘッダー --- */
+/* チャットボットの上部に固定されるヘッダーのスタイル */
 .header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 20px;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); /* グラデーション背景を変数で指定 */
+  color: var(--text-light); /* 文字色を変数で指定 */
+  padding: 1.25rem; /* 20px (rem単位) */
   text-align: center;
+  flex-shrink: 0; /* ヘッダーが縮まないように固定 */
+}
+.header h1 {
+  margin-top: 0;
+  margin-bottom: 0.5rem; /* 8px (rem単位) */
+  font-size: 2rem; /* 32px (rem単位) */
+}
+.header p {
+  font-size: 1rem; /* 16px (rem単位) */
+  margin: 0;
 }
 
+/* --- セレクターコンテナ --- */
+/* 新しく追加されたセレクター部分のスタイル */
 .selector-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 20px;
-  padding: 15px;
+  gap: 1.25rem; /* 20px (rem単位) */
+  padding: 0.9375rem; /* 15px (rem単位) */
   background-color: #f9f9f9;
-  border-bottom: 1px solid #eee;
+  border-bottom: 0.0625rem solid #eee; /* 1px (rem単位) */
+  flex-wrap: wrap; /* 画面が狭くなったら折り返す */
 }
 
 .selector-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem; /* 8px (rem単位) */
+  flex-shrink: 1; /* 必要に応じてグループ自体も縮む */
+  flex-basis: auto; /* コンテンツの幅を基準にする */
 }
 
 .selector-group label {
-  font-size: 16px;
-  color: #333;
+  font-size: 1rem; /* 16px (rem単位) */
+  color: var(--text-dark); /* 変数で指定 */
+  white-space: nowrap; /* ラベルのテキストが折り返さないようにする */
+  min-width: fit-content; /* ラベルが内容に合わせて最小幅になるように */
 }
 
 .selector-group select {
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 16px;
+  padding: 0.5rem 0.75rem; /* 8px 12px (rem単位) */
+  border: 0.0625rem solid #ccc; /* 1px (rem単位) */
+  border-radius: 0.3125rem; /* 5px (rem単位) */
+  font-size: 1rem; /* 16px (rem単位) */
+  min-width: 80px; /* 選択肢の最小幅を設定 (必要に応じて調整) */
+  max-width: 150px; /* PCでのselectの最大幅を維持（必要に応じて調整） */
+  width: auto; /* コンテンツに応じて幅を自動調整 */
+  white-space: nowrap; /* テキストの折り返しを防ぎ、...で省略 */
+  overflow: hidden; /* はみ出た部分を隠す */
+  text-overflow: ellipsis; /* はみ出たテキストを...で表示 */
+  box-sizing: border-box; /* パディングとボーダーを幅に含める */
 }
 
-/* --- ▼▼▼ Flexboxを使ったチャットエリアのスタイル ▼▼▼ --- */
 
+/* --- チャット表示エリア --- */
+/* メッセージが表示され、スクロールする領域 */
 .chat-container {
-  flex: 1; /* ★残りの高さをすべて埋める */
-  overflow-y: auto; /* 内容が多ければスクロール */
-  padding: 20px;
-  border-bottom: 1px solid #eee;
-  
-  display: flex;
-  flex-direction: column; /* 要素を縦に並べる */
-  gap: 15px; /* メッセージ間の余白 */
+  flex-grow: 1; /* 残りの垂直スペースを全て埋める */
+  overflow-y: auto; /* メッセージが溢れたら、このエリア内でのみスクロール */
+  padding: 1.25rem; /* 20px (rem単位) */
+  border-bottom: 0.0625rem solid #eee; /* 1px (rem単位) */
+  display: flex; /* メッセージをFlexboxで配置 */
+  flex-direction: column; /* メッセージを縦方向に並べる */
+  gap: 0.9375rem; /* 15px (rem単位) メッセージ間の余白 */
+  /* heightやmax-heightはflex-growが制御するため、ここでの指定は不要 */
 }
 
+/* --- 個々のメッセージ --- */
+/* 送信されたメッセージの吹き出しスタイル */
 .message {
-  padding: 10px 15px;
-  border-radius: 20px;
-  max-width: 80%;
-  box-sizing: border-box;
-  text-align: left;
+  padding: 0.625rem 0.9375rem; /* 10px 15px (rem単位) */
+  border-radius: 1.25rem; /* 20px (rem単位) */
+  max-width: 80%; /* 親要素の80%が最大幅 */
+  width: fit-content; /* コンテンツの幅に合わせて要素の幅を自動調整 */
+  box-sizing: border-box; /* paddingとborderをwidthに含める */
+  text-align: left; /* テキストは左寄せ（user-messageで上書きされる） */
 }
 
+/* ユーザーが送信したメッセージのスタイル */
 .user-message {
-  background: #667eea;
-  color: white;
-  align-self: flex-end; /* ★ユーザーメッセージを右に配置 */
+  background: var(--primary-color); /* 背景色を変数で指定 */
+  color: var(--text-light); /* 文字色を変数で指定 */
+  align-self: flex-end; /* Flexアイテムを右端に配置 */
 }
 
+/* ボットからのメッセージのスタイル */
 .bot-message {
   background: #f0f0f0;
-  color: #333;
-  align-self: flex-start; /* ★ボットメッセージを左に配置 */
+  color: var(--text-dark); /* 文字色を変数で指定 */
+  align-self: flex-start; /* Flexアイテムを左端に配置 */
 }
 
+/* --- ローディングメッセージ --- */
 .loading {
   text-align: center;
   color: #666;
   font-style: italic;
 }
-/* --- ▲▲▲ ここまでチャットエリアのスタイル ▲▲▲ --- */
 
-
+/* --- 入力エリア --- */
+/* 画面下部に固定される入力フォームのスタイル */
 .input-container {
-  display: flex;
-  padding: 20px;
-  gap: 10px;
+  display: flex; /* 入力フィールドとボタンをFlexboxで配置 */
+  padding: 1.25rem; /* 20px (rem単位) */
+  gap: 0.625rem; /* 10px (rem単位) */
+  flex-shrink: 0; /* 入力エリアが縮まないように固定 */
 }
 
+/* 入力フィールドのスタイル */
 #messageInput {
-  flex: 1;
-  padding: 12px;
-  border: 2px solid #ddd;
-  border-radius: 25px;
-  outline: none;
-  font-size: 16px;
+  flex: 1; /* 残りのスペースを全て占有 */
+  padding: 0.75rem; /* 12px (rem単位) */
+  border: 0.125rem solid var(--border-color); /* 2px (rem単位) */
+  border-radius: 1.5625rem; /* 25px (rem単位) */
+  outline: none; /* フォーカス時のアウトラインを非表示 */
+  font-size: 1rem; /* 16px (rem単位) */
 }
-
 #messageInput:focus {
-  border-color: #667eea;
+  border-color: var(--primary-color); /* フォーカス時にボーダー色を変更 */
 }
 
+/* 送信ボタンのスタイル */
 #sendButton {
-  padding: 12px 25px;
-  background: #667eea;
-  color: white;
+  padding: 0.75rem 1.5625rem; /* 12px 25px (rem単位) */
+  background: var(--primary-color); /* 背景色を変数で指定 */
+  color: var(--text-light); /* 文字色を変数で指定 */
   border: none;
-  border-radius: 25px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background 0.3s;
+  border-radius: 1.5625rem; /* 25px (rem単位) */
+  cursor: pointer; /* マウスカーソルをポインターに */
+  font-size: 1rem; /* 16px (rem単位) */
+  transition: background 0.3s; /* ホバー時のアニメーション */
 }
-
 #sendButton:hover {
-  background: #5a6fd8;
+  background: #5a6fd8; /* ホバー時の背景色 */
+}
+#sendButton:disabled {
+  background: #ccc; /* 無効時の背景色 */
+  cursor: not-allowed; /* 無効時のカーソル */
 }
 
-#sendButton:disabled {
-  background: #ccc;
-  cursor: not-allowed;
+
+/* ==================================== */
+/* --- メディアクエリ (レスポンシブ対応) --- */
+/* 画面サイズに応じたレイアウト調整 */
+/* ==================================== */
+
+/* 768px以下の画面サイズ (タブレット横〜スマホ縦) */
+@media (max-width: 768px) {
+  body {
+    padding: 0; /* モバイルではbodyのパディングを0に */
+  }
+  .container {
+    border-radius: 0; /* モバイルでは角丸をなくす */
+    box-shadow: none; /* モバイルでは影をなくす */
+    height: 100vh;
+    max-width: 100%; /* 最大幅も100%に広げる */
+  }
+  .header {
+    padding: 1rem; /* 16px (ヘッダーのパディングを調整) */
+  }
+  .header h1 {
+    font-size: 1.75rem; /* ヘッダーH1のフォントサイズ調整 */
+  }
+  .header p {
+    font-size: 0.9rem; /* ヘッダーPのフォントサイズ調整 */
+  }
+  .selector-container {
+    flex-direction: column; /* モバイルではセレクターグループを縦に並べる */
+    gap: 0.8rem; /* 隙間を調整 */
+    padding: 0.75rem; /* パディングを調整 */
+  }
+  .selector-group {
+    width: 100%; /* モバイルではグループを全幅にする */
+    justify-content: center; /* 中央寄せ */
+  }
+  .selector-group label {
+    font-size: 0.95rem; /* フォントサイズを少し小さく */
+  }
+  .selector-group select {
+    font-size: 0.95rem; /* フォントサイズを少し小さく */
+    min-width: 100px; /* モバイルでの最小幅を調整 */
+    max-width: 100%; /* モバイルでは親の幅いっぱいに */
+  }
+  .chat-container {
+    padding: 1rem; /* 16px (チャットエリアのパディング調整) */
+  }
+  .message {
+    max-width: 90%; /* メッセージの最大幅を広げる */
+  }
+  .input-container {
+    flex-direction: column; /* 入力欄とボタンを縦に並べる */
+    padding: 1rem; /* 16px (入力エリアのパディング調整) */
+    gap: 0.5rem; /* 8px (隙間を調整) */
+  }
+  #messageInput,
+  #sendButton {
+    width: 100%; /* フル幅にする */
+    box-sizing: border-box; /* paddingとborderをwidthに含める */
+  }
+}
+
+/* 480px以下の画面サイズ (スマートフォン縦) */
+@media (max-width: 480px) {
+  /* bodyはすでにpadding: 0; */
+  .header {
+    padding: 0.75rem; /* 12px (さらにパディングを減らす) */
+  }
+  .header h1 {
+    font-size: 1.5rem; /* さらにフォントサイズを小さく */
+  }
+  .header p {
+    font-size: 0.85rem; /* さらにフォントサイズを小さく */
+  }
+  .selector-container {
+    gap: 0.6rem; /* さらに隙間を詰める */
+    padding: 0.5rem; /* さらにパディングを減らす */
+  }
+  .selector-group label,
+  .selector-group select {
+    font-size: 0.9rem; /* フォントサイズをさらに小さく */
+  }
+  .chat-container {
+    padding: 0.75rem; /* 12px (さらにパディングを減らす) */
+  }
+  .input-container {
+    padding: 0.75rem; /* 12px (さらにパディングを減らす) */
+  }
+  #messageInput {
+    padding: 0.625rem; /* 10px (入力欄のパディングも少し減らす) */
+  }
+  #sendButton {
+    padding: 0.625rem 1rem; /* 10px 16px (ボタンのパディングも調整) */
+  }
 }
