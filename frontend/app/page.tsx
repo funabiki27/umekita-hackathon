@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 
-// 学部・学科のデータを定義
+// (変更なし) 学部・学科のデータを定義
 const departmentsByFaculty = {
   engineering: {
     mechanical: "機械工学科",
@@ -62,26 +62,22 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // ★★★ 初期値を空('')に変更 ★★★
   const [selectedFaculty, setSelectedFaculty] = useState<FacultyKey | "">("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedGrade, setSelectedGrade] = useState("");
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // ★★★ 学部が選択/非選択になった際の処理を修正 ★★★
   useEffect(() => {
     if (selectedFaculty) {
-      // 学部が選択されたら、その学部の一番最初の学科を自動で選択する
       const departments = departmentsByFaculty[selectedFaculty];
       const firstDepartmentKey = Object.keys(departments)[0];
       setSelectedDepartment(firstDepartmentKey);
     } else {
-      // 学部が選択されていない状態になったら、学科もリセットする
       setSelectedDepartment("");
     }
   }, [selectedFaculty]);
 
-  // メッセージが追加されたら、一番下までスクロール
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop =
@@ -97,7 +93,7 @@ export default function Home() {
       alert("学部と学科を選択してください。");
       return;
     }
-    // ★ ユーザーの新しいメッセージを追加する前の、現在の会話履歴を保持
+
     const currentHistory = [...messages];
 
     const userMessage: Message = { content: trimmedInput, isUser: true };
@@ -105,7 +101,7 @@ export default function Home() {
     setInput("");
     setIsLoading(true);
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL;
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
     try {
       const response = await fetch(`${API_URL}`, {
@@ -115,25 +111,35 @@ export default function Home() {
           message: trimmedInput,
           faculty: selectedFaculty,
           department: selectedDepartment,
-          history: currentHistory, // ★ 現在の質問を追加する前の履歴を渡す
+          history: currentHistory,
         }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        const errorMessage =
+          errorData?.error ||
+          `サーバーエラーが発生しました (ステータス: ${response.status})`;
+        throw new Error(errorMessage);
+      }
+
       const data = await response.json();
       const responseMessage =
-        data.response ||
-        `エラー (${response.status}): ${data.error || "不明なエラー"}`;
+        data.response || "AIから有効な回答を得られませんでした。";
       setMessages((prev) => [
         ...prev,
         { content: responseMessage, isUser: false },
       ]);
     } catch (error) {
       console.error("Fetch error:", error);
+      const displayMessage =
+        error instanceof Error
+          ? error.message
+          : "通信エラーが発生しました。バックエンドサーバーが起動しているか確認してください。";
       setMessages((prev) => [
         ...prev,
         {
-          content:
-            "通信エラーが発生しました。バックエンドサーバーが起動しているか確認してください。",
+          content: displayMessage,
           isUser: false,
         },
       ]);
@@ -142,6 +148,7 @@ export default function Home() {
     }
   };
 
+  // (変更なし) JSX部分は省略
   return (
     <div className="container">
       <div className="header">
@@ -158,11 +165,9 @@ export default function Home() {
             onChange={(e) => setSelectedFaculty(e.target.value as FacultyKey)}
             disabled={isLoading}
           >
-            {/* ★★★ プレースホルダー（未選択時の表示）を追加 ★★★ */}
             <option value="" disabled>
               学部を選択
             </option>
-
             {Object.keys(departmentsByFaculty).map((facultyKey) => (
               <option key={facultyKey} value={facultyKey}>
                 {
@@ -187,14 +192,11 @@ export default function Home() {
             id="departmentSelect"
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            disabled={isLoading || !selectedFaculty} // ★★★ 学部が未選択なら非活性化 ★★★
+            disabled={isLoading || !selectedFaculty}
           >
-            {/* ★★★ プレースホルダーを追加 ★★★ */}
             <option value="" disabled>
               学科を選択
             </option>
-
-            {/* ★★★ 学部が選択されている場合のみ学科を表示 ★★★ */}
             {selectedFaculty &&
               Object.entries(departmentsByFaculty[selectedFaculty]).map(
                 ([key, name]) => (
@@ -203,6 +205,23 @@ export default function Home() {
                   </option>
                 ),
               )}
+          </select>
+        </div>
+        <div className="selector-group">
+          <label htmlFor="gradeSelect">学年:</label>
+          <select
+            id="gradeSelect"
+            value={selectedGrade}
+            onChange={(e) => setSelectedGrade(e.target.value)}
+            disabled={isLoading}
+          >
+            <option value="" disabled>
+              学年を選択
+            </option>
+            <option value="1">1年</option>
+            <option value="2">2年</option>
+            <option value="3">3年</option>
+            <option value="4">4年</option>
           </select>
         </div>
       </div>
@@ -238,7 +257,7 @@ export default function Home() {
         <button
           id="sendButton"
           onClick={handleSendMessage}
-          disabled={isLoading || !selectedFaculty || !selectedDepartment} // ★★★ 学部学科が未選択なら非活性化 ★★★
+          disabled={isLoading || !selectedFaculty || !selectedDepartment}
         >
           送信
         </button>
