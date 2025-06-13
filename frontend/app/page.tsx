@@ -104,7 +104,7 @@ export default function Home() {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
     try {
-      const response = await fetch(`${API_URL}/api/chat`, {
+      const response = await fetch(`${API_URL}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -117,7 +117,9 @@ export default function Home() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        const errorMessage = errorData?.error || `サーバーエラーが発生しました (ステータス: ${response.status})`
+        const errorMessage =
+          errorData?.error ||
+          `サーバーエラーが発生しました (ステータス: ${response.status})`;
         throw new Error(errorMessage);
       }
 
@@ -130,7 +132,10 @@ export default function Home() {
       ]);
     } catch (error) {
       console.error("Fetch error:", error);
-      const displayMessage = error instanceof Error ? error.message : "通信エラーが発生しました。バックエンドサーバーが起動しているか確認してください。";
+      const displayMessage =
+        error instanceof Error
+          ? error.message
+          : "通信エラーが発生しました。バックエンドサーバーが起動しているか確認してください。";
       setMessages((prev) => [
         ...prev,
         {
@@ -198,7 +203,7 @@ export default function Home() {
                   <option key={key} value={key}>
                     {name}
                   </option>
-                )
+                ),
               )}
           </select>
         </div>
